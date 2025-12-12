@@ -62,18 +62,21 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // The request body from your frontend
-        const requestBody = event.body; // Apps Script often handles simple text/JSON, keep it raw
+        // Parse the raw JSON body sent from the frontend
+        const formDataObj = JSON.parse(event.body); 
+        
+        // RE-ENCODE for Google Apps Script's expected format (data=...)
+        // This is necessary because the frontend sends clean JSON, but Apps Script needs form data.
+        const appsScriptBody = 'data=' + encodeURIComponent(JSON.stringify(formDataObj));
         
         // Forward the request to Google Apps Script
         const appsScriptResponse = await fetch(APPSCRIPT_URL, {
             method: 'POST',
-            // IMPORTANT: Apps Script might not need the Content-Type header explicitly here, 
-            // but including it is safe for JSON payloads.
             headers: {
-                'Content-Type': 'application/json',
+                // Apps Script expects this content type when receiving the data=... string
+                'Content-Type': 'application/x-www-form-urlencoded', 
             },
-            body: requestBody, // Forward the raw body
+            body: appsScriptBody, 
         });
 
         const appsScriptData = await appsScriptResponse.json();
@@ -89,7 +92,7 @@ exports.handler = async (event, context) => {
 
         return {
             statusCode: 200,
-            headers: CORS_HEADERS, // CORS header for successful response
+            headers: CORS_HEADERS,
             body: JSON.stringify(appsScriptData),
         };
 
