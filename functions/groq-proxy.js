@@ -1,17 +1,23 @@
 // functions/groq-proxy.js
 const fetch = require('node-fetch');
 
-// Define your authorized domains to prevent quota abuse.
-// IMPORTANT: Replace "https://nonakit.github.io" with your actual GitHub Pages URL if it's different.
+// Define ALL authorized domains (origins) to prevent quota abuse.
+// Requests coming from any other URL will be blocked with a 403 Forbidden error.
 const AUTHORIZED_ORIGINS = [
+    // Previous GitHub Pages domain
     "https://nonakit.github.io", 
-    "http://127.0.0.1:5501", // Allows local testing (as seen in previous errors)
-    "http://localhost:5501" // A common fallback for local development
+    
+    // New GitHub Pages domain
+    "https://tislamkanon.github.io", 
+    
+    // Allows local testing (as seen in previous errors)
+    "http://127.0.0.1:5501", 
+    "http://localhost:5501" 
 ];
 
 // Define the required CORS headers for all responses
 const CORS_HEADERS = {
-    // Allows requests from all origins (the security is enforced by the check below)
+    // Allows requests from all origins (the security is enforced by the check above)
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type", 
