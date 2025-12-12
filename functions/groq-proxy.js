@@ -1,53 +1,82 @@
 // functions/groq-proxy.js
+const fetch = require('node-fetch');
 
-// Netlify Functions run a Node.js environment, which includes 'fetch' globally.
-
-exports.handler = async (event) => {
-    // 1. Get the secret key securely from Netlify's Environment Variables
-    const GROQ_API_KEY = process.env.GROQ_API_KEY;
-
-    if (!GROQ_API_KEY) {
-        return { statusCode: 500, body: JSON.stringify({ error: 'Server key not configured.' }) };
+exports.handler = async (event, context) => {
+    // 1. Preflight CORS Check (REQUIRED for POST requests)
+    if (event.httpMethod === "OPTIONS") {
+        return {
+            statusCode: 200,
+            headers: {
+                // Allow all origins to access (for easy debugging/deployment)
+                "Access-Control-Allow-Origin": "*",
+                // Specify which methods are allowed
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                // Specify which headers can be sent
+                "Access-Control-Allow-Headers": "Content-Type", 
+            },
+            body: "OK",
+        };
+    }
+    
+    // 2. Main POST Request Handler
+    if (event.httpMethod !== "POST") {
+        return {
+            statusCode: 405,
+            body: "Method Not Allowed",
+        };
     }
 
-    // 2. Safely parse the request body from your GitHub Pages frontend
-    let body;
     try {
-        body = JSON.parse(event.body);
-    } catch (e) {
-        return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON body.' }) };
-    }
+        // Retrieve the Groq API Key securely from environment variables
+        const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-    // 3. Define the external API URL
-    const groqApiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+        if (!GROQ_API_KEY) {
+            console.error("GROQ_API_KEY environment variable is not set.");
+            return {
+                statusCode: 500,
+                headers: { "Access-Control-Allow-Origin": "*" }, // Add CORS to error responses too
+                body: JSON.stringify({ error: { message: "Server configuration error: API key missing." } }),
+            };
+        }
 
-    try {
-        // 4. Make the secure, server-side call
-        const groqResponse = await fetch(groqApiUrl, {
+        // The request body from your frontend
+        const requestBody = JSON.parse(event.body);
+
+        // Forward the request to Groq API
+        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
-                // *** The secret key is only used here, on the server! ***
-                'Authorization': `Bearer ${GROQ_API_KEY}`,
                 'Content-Type': 'application/json',
+                // *** THE SECURITY STEP ***: Add the key securely on the server
+                'Authorization': `Bearer ${GROQ_API_KEY}`,
             },
-            body: JSON.stringify(body),
+            body: JSON.stringify(requestBody),
         });
 
-        const data = await groqResponse.json();
+        const groqData = await groqResponse.json();
 
-        // 5. Return the result back to your GitHub Pages frontend
+        // 3. Return the Final Result with CORS Headers
+        if (!groqResponse.ok) {
+            // Forward error response from Groq
+            return {
+                statusCode: groqResponse.status,
+                headers: { "Access-Control-Allow-Origin": "*" },
+                body: JSON.stringify(groqData),
+            };
+        }
+
         return {
-            statusCode: groqResponse.status,
-            // Allow your GitHub Pages site to read the response (CORS)
-            headers: { 'Access-Control-Allow-Origin': '*' }, 
-            body: JSON.stringify(data),
+            statusCode: 200,
+            headers: { "Access-Control-Allow-Origin": "*" },
+            body: JSON.stringify(groqData),
         };
 
     } catch (error) {
-        console.error("Groq Function Error:", error);
+        console.error("Function error:", error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: 'Internal proxy error.' }),
+            headers: { "Access-Control-Allow-Origin": "*" },
+            body: JSON.stringify({ error: { message: `Internal proxy error: ${error.message}` } }),
         };
     }
 };
