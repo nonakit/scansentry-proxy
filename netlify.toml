@@ -1,4 +1,6 @@
-[build]
-  # Standard convention is netlify/functions, but "functions" is also fine if 
-  # that is the folder you create. Let's stick with 'functions' as you chose.
-  functions = "functions"
+# netlify.toml
+
+# This block tells Netlify to automatically install dependencies 
+# found in the package.json file located inside your functions directory.
+[[plugins]]
+package = "@netlify/plugin-functions-install-core"
