@@ -1,0 +1,7 @@
+[build]
+  functions = "functions"  # Tells Netlify where functions live
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/:splat"
+  status = 404
