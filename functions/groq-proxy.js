@@ -2,15 +2,15 @@
 const fetch = require('node-fetch');
 
 exports.handler = async (event, context) => {
-    // 1. Preflight CORS Check (REQUIRED for POST requests)
+    // 1. Preflight CORS Check (REQUIRED for POST requests from other domains)
     if (event.httpMethod === "OPTIONS") {
         return {
             statusCode: 200,
             headers: {
-                // Allow all origins to access (for easy debugging/deployment)
+                // Allow requests from all origins (YOUR GitHub Pages site)
                 "Access-Control-Allow-Origin": "*",
                 // Specify which methods are allowed
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
                 // Specify which headers can be sent
                 "Access-Control-Allow-Headers": "Content-Type", 
             },
@@ -34,12 +34,12 @@ exports.handler = async (event, context) => {
             console.error("GROQ_API_KEY environment variable is not set.");
             return {
                 statusCode: 500,
-                headers: { "Access-Control-Allow-Origin": "*" }, // Add CORS to error responses too
+                headers: { "Access-Control-Allow-Origin": "*" }, 
                 body: JSON.stringify({ error: { message: "Server configuration error: API key missing." } }),
             };
         }
 
-        // The request body from your frontend
+        // Parse the request body (which contains the Groq payload from your frontend)
         const requestBody = JSON.parse(event.body);
 
         // Forward the request to Groq API
@@ -47,7 +47,7 @@ exports.handler = async (event, context) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // *** THE SECURITY STEP ***: Add the key securely on the server
+                // *** THE SECURITY STEP ***: Key added on the server-side
                 'Authorization': `Bearer ${GROQ_API_KEY}`,
             },
             body: JSON.stringify(requestBody),
@@ -57,7 +57,7 @@ exports.handler = async (event, context) => {
 
         // 3. Return the Final Result with CORS Headers
         if (!groqResponse.ok) {
-            // Forward error response from Groq
+            // Forward error response from Groq, ensuring CORS is included
             return {
                 statusCode: groqResponse.status,
                 headers: { "Access-Control-Allow-Origin": "*" },
@@ -67,7 +67,7 @@ exports.handler = async (event, context) => {
 
         return {
             statusCode: 200,
-            headers: { "Access-Control-Allow-Origin": "*" },
+            headers: { "Access-Control-Allow-Origin": "*" }, // CORS header for successful response
             body: JSON.stringify(groqData),
         };
 
