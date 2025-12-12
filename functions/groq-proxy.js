@@ -1,23 +1,9 @@
 // functions/groq-proxy.js
 const fetch = require('node-fetch');
 
-// Define ALL authorized domains (origins) to prevent quota abuse.
-// Requests coming from any other URL will be blocked with a 403 Forbidden error.
-const AUTHORIZED_ORIGINS = [
-    // Previous GitHub Pages domain
-    "https://nonakit.github.io", 
-    
-    // New GitHub Pages domain
-    "https://tislamkanon.github.io", 
-    
-    // Allows local testing (as seen in previous errors)
-    "http://127.0.0.1:5501", 
-    "http://localhost:5501" 
-];
-
 // Define the required CORS headers for all responses
 const CORS_HEADERS = {
-    // Allows requests from all origins (the security is enforced by the check above)
+    // Allows requests from all origins (security relies on API key remaining hidden)
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type", 
@@ -25,19 +11,7 @@ const CORS_HEADERS = {
 
 exports.handler = async (event, context) => {
     
-    // *** SECURITY CHECK: BLOCK UNAUTHORIZED ORIGINS ***
-    const origin = event.headers.origin;
-
-    // Check if the request is from an unauthorized domain
-    if (origin && !AUTHORIZED_ORIGINS.includes(origin)) {
-        console.warn(`Access Denied: Request blocked from unauthorized origin: ${origin}`);
-        return {
-            statusCode: 403, // Forbidden
-            headers: CORS_HEADERS,
-            body: JSON.stringify({ error: { message: "Access Denied: Unauthorized Origin" } }),
-        };
-    }
-    // *** END SECURITY CHECK ***
+    // *** SECURITY CHECK REMOVED: Function is now open to all domains ***
 
     // 1. Handle the CORS Preflight Request (HTTP OPTIONS)
     if (event.httpMethod === "OPTIONS") {
