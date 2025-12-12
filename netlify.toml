@@ -1,7 +1,4 @@
 [build]
-  functions = "functions"  # Tells Netlify where functions live
-
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/:splat"
-  status = 404
+  # Standard convention is netlify/functions, but "functions" is also fine if 
+  # that is the folder you create. Let's stick with 'functions' as you chose.
+  functions = "functions"
