@@ -1,37 +1,42 @@
 // functions/appscript-proxy.js
 const fetch = require('node-fetch');
 
-// Define the required CORS headers for all responses
+// Enhanced CORS headers
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type", 
+    "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+    "Access-Control-Allow-Headers": "Content-Type, Accept",
+    "Access-Control-Max-Age": "86400",
 };
 
 exports.handler = async (event, context) => {
     
-    // *** SECURITY CHECK REMOVED: Function is now open to all domains ***
+    console.log('Received request:', {
+        method: event.httpMethod,
+        origin: event.headers.origin || 'no-origin',
+        path: event.path
+    });
 
-    // 1. Handle the CORS Preflight Request (HTTP OPTIONS)
+    // 1. Handle CORS Preflight (OPTIONS)
     if (event.httpMethod === "OPTIONS") {
         return {
-            statusCode: 200,
+            statusCode: 204,
             headers: CORS_HEADERS,
-            body: "OK",
+            body: "",
         };
     }
     
-    // 2. Main POST Request Handler
+    // 2. Only allow POST for actual submission
     if (event.httpMethod !== "POST") {
         return {
             statusCode: 405,
             headers: CORS_HEADERS, 
-            body: "Method Not Allowed",
+            body: JSON.stringify({ error: "Method Not Allowed. Use POST." }),
         };
     }
 
     try {
-        // Retrieve the Apps Script URL securely from environment variables
+        // Get Apps Script URL from environment
         const APPSCRIPT_URL = process.env.GOOGLE_APPSCRIPT_URL;
 
         if (!APPSCRIPT_URL) {
@@ -39,37 +44,67 @@ exports.handler = async (event, context) => {
             return {
                 statusCode: 500,
                 headers: CORS_HEADERS,
-                body: JSON.stringify({ error: { message: "Server configuration error: Apps Script URL missing." } }),
+                body: JSON.stringify({ 
+                    success: false,
+                    error: "Server configuration error: Apps Script URL missing." 
+                }),
             };
         }
 
-        // Parse the raw JSON body sent from the frontend
-        const formDataObj = JSON.parse(event.body); 
+        // Parse request body
+        let formDataObj;
+        try {
+            formDataObj = JSON.parse(event.body);
+        } catch (parseError) {
+            console.error("Failed to parse request body:", parseError);
+            return {
+                statusCode: 400,
+                headers: CORS_HEADERS,
+                body: JSON.stringify({ 
+                    success: false,
+                    error: "Invalid JSON in request body" 
+                }),
+            };
+        }
         
-        // RE-ENCODE for Google Apps Script's expected format (data=...)
+        console.log('Data size:', event.body.length, 'bytes');
+        
+        // Encode for Google Apps Script
         const appsScriptBody = 'data=' + encodeURIComponent(JSON.stringify(formDataObj));
         
-        // Forward the request to Google Apps Script
+        console.log('Forwarding to Apps Script...');
+        
+        // Forward to Google Apps Script
         const appsScriptResponse = await fetch(APPSCRIPT_URL, {
             method: 'POST',
             headers: {
-                // Apps Script expects this content type when receiving the data=... string
                 'Content-Type': 'application/x-www-form-urlencoded', 
             },
-            body: appsScriptBody, 
+            body: appsScriptBody,
+            timeout: 30000, // 30 second timeout
         });
 
-        const appsScriptData = await appsScriptResponse.json();
-
-        // 3. Return the Final Result with CORS Headers
-        if (!appsScriptResponse.ok) {
+        const responseText = await appsScriptResponse.text();
+        let appsScriptData;
+        
+        try {
+            appsScriptData = JSON.parse(responseText);
+        } catch (e) {
+            console.error('Apps Script returned non-JSON:', responseText);
             return {
-                statusCode: appsScriptResponse.status,
-                headers: CORS_HEADERS, 
-                body: JSON.stringify(appsScriptData),
+                statusCode: 500,
+                headers: CORS_HEADERS,
+                body: JSON.stringify({ 
+                    success: false,
+                    error: "Invalid response from Apps Script",
+                    details: responseText.substring(0, 200)
+                }),
             };
         }
 
+        console.log('Apps Script response:', appsScriptData);
+
+        // Return success/failure from Apps Script
         return {
             statusCode: 200,
             headers: CORS_HEADERS,
@@ -77,11 +112,15 @@ exports.handler = async (event, context) => {
         };
 
     } catch (error) {
-        console.error("Apps Script Function error:", error);
+        console.error("Function error:", error);
         return {
             statusCode: 500,
             headers: CORS_HEADERS,
-            body: JSON.stringify({ error: { message: `Internal Apps Script proxy error: ${error.message}` } }),
+            body: JSON.stringify({ 
+                success: false,
+                error: `Proxy error: ${error.message}`,
+                stack: error.stack
+            }),
         };
     }
 };
